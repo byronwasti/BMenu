@@ -8,18 +8,16 @@
 #define HEIGHT 100
 
 static xcb_gc_t getFontGC (xcb_connection_t *c,
-                             xcb_screen_t     *screen,
-                             xcb_window_t      window,
-                             const char       *font_name );
+						   	xcb_screen_t *screen,
+							xcb_window_t window,
+							const char *font_name );
 
-/*
 static void drawText (xcb_connection_t *c,
-                       xcb_screen_t     *screen,
-                       xcb_window_t      window,
-                       int16_t           x1,
-                       int16_t           y1,
-                       const char       *label );
-*/
+					xcb_screen_t *screen,
+					xcb_window_t window,
+					int16_t x1,
+					int16_t y1,
+					const char *label );
 
 static void
 testCookie (xcb_void_cookie_t cookie,
@@ -105,63 +103,11 @@ getFontGC (xcb_connection_t  *connection,
     return gc;
 }
 
-
-int
-main ()
+static void
+setWindowProperties (xcb_connection_t 	*connection,
+					xcb_window_t 		window,
+					char 				*title)
 {
-    /* get the connection */
-    int screenNum;
-    xcb_connection_t *connection = xcb_connect (NULL, &screenNum);
-    if (!connection) {
-        fprintf (stderr, "ERROR: can't connect to an X server\n");
-        return -1;
-    }
-
-
-    /* get the current screen */
-    xcb_screen_iterator_t iter = xcb_setup_roots_iterator (xcb_get_setup (connection));
-
-    // we want the screen at index screenNum of the iterator
-    /*
-    for (int i = 0; i < screenNum; ++i) {
-        xcb_screen_next (&iter);
-    }
-    */
-
-    xcb_screen_t *screen = iter.data;
-
-    if (!screen) {
-        fprintf (stderr, "ERROR: can't get the current screen\n");
-        xcb_disconnect (connection);
-        return -1;
-    }
-
-
-    /* create the window */
-    xcb_window_t window = xcb_generate_id (connection);
-
-    uint32_t mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
-    uint32_t values[2];
-    values[0] = screen->white_pixel;
-    values[1] = XCB_EVENT_MASK_KEY_RELEASE |
-                XCB_EVENT_MASK_KEY_PRESS |
-                XCB_EVENT_MASK_BUTTON_PRESS |
-                XCB_EVENT_MASK_EXPOSURE |
-                XCB_EVENT_MASK_POINTER_MOTION;
-
-    xcb_void_cookie_t windowCookie = xcb_create_window_checked (connection,
-                                                                screen->root_depth,
-                                                                window, screen->root,
-                                                                20, 200, 
-                                                                WIDTH, HEIGHT,
-                                                                10, XCB_WINDOW_CLASS_INPUT_OUTPUT,
-                                                                screen->root_visual,
-                                                                mask, values);
-
-    testCookie(windowCookie, connection, "can't create window");
-
-    // Name the window
-    char *title = "BMenu";
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
                     window, XCB_ATOM_WM_NAME,
                     XCB_ATOM_STRING,
@@ -191,28 +137,81 @@ main ()
                 fprintf(stderr, "Unable to set window type. You will need to manually set your window manager to run lighthouse as you'd like.");
             }
       }
-    
-    // Set the window to be in the center
+
+	return;
+}
+
+
+int
+main ()
+{
+    // get the connection
+    int screenNum;
+    xcb_connection_t *connection = xcb_connect (NULL, &screenNum);
+    if (!connection) {
+        fprintf (stderr, "ERROR: can't connect to an X server\n");
+        return -1;
+    }
+
+
+    // get the current screen
+    xcb_screen_iterator_t iter = xcb_setup_roots_iterator (xcb_get_setup (connection));
+
+    xcb_screen_t *screen = iter.data;
+
+	// Check to see if the screen could be found
+    if (!screen) {
+        fprintf (stderr, "ERROR: can't get the current screen\n");
+        xcb_disconnect (connection);
+        return -1;
+    }
+
+
+    // create the window
+    xcb_window_t window = xcb_generate_id (connection);
+
+    uint32_t mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
+    uint32_t values[2];
+    values[0] = screen->white_pixel;
+    values[1] = XCB_EVENT_MASK_KEY_RELEASE |
+                XCB_EVENT_MASK_KEY_PRESS |
+                XCB_EVENT_MASK_BUTTON_PRESS |
+                XCB_EVENT_MASK_EXPOSURE |
+                XCB_EVENT_MASK_POINTER_MOTION;
+
     values[0] = screen->width_in_pixels / 2 - WIDTH/2;
     values[1] = screen->height_in_pixels / 2 - HEIGHT/2;
-    xcb_configure_window (connection, window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
 
+    xcb_void_cookie_t windowCookie = xcb_create_window_checked (connection,
+                                                                screen->root_depth,
+                                                                window, screen->root,
+                                                                values[0], values[1],
+                                                                WIDTH, HEIGHT,
+                                                                10, XCB_WINDOW_CLASS_INPUT_OUTPUT,
+                                                                screen->root_visual,
+                                                                mask, values);
 
+    testCookie(windowCookie, connection, "can't create window");
+
+    // Name the window
+    char *title = "BMenu";
+	setWindowProperties(connection,window,title);
+
+	// Map the window and check to see if it worked
     xcb_void_cookie_t mapCookie = xcb_map_window_checked (connection, window);
-
     testCookie(mapCookie, connection, "can't map window");
 
-    xcb_flush(connection);  // make sure window is drawn
+	// Draw the window
+    xcb_flush(connection); 
 
-
-    /* event loop */
+    // event loop
     xcb_generic_event_t  *event;
     while (1) { ;
         if ( (event = xcb_poll_for_event(connection)) ) {
             switch (event->response_type & ~0x80) {
                 case XCB_EXPOSE: {
 
-                    // Get the input focus
+                    // Get the input focus on initial start-up
                     xcb_void_cookie_t focus_cookie = xcb_set_input_focus_checked(connection, XCB_INPUT_FOCUS_POINTER_ROOT, window, XCB_CURRENT_TIME);
                     testCookie(focus_cookie, connection, "Failed to grab focus.");
                     
@@ -225,16 +224,19 @@ main ()
                     break;
                 }
 				case XCB_ENTER_NOTIFY: {
-					printf ("Entered window\n");
+					// Check to see if mouse entered the window
+					// and set the window to be in focus
+
 					xcb_void_cookie_t focus_cookie = xcb_set_input_focus_checked(connection, XCB_INPUT_FOCUS_POINTER_ROOT, window, XCB_CURRENT_TIME);
 					testCookie(focus_cookie, connection, "Failed to grab focus.\n");
 				}
-                case XCB_KEY_RELEASE: {
-                    printf("got key release\n");
+                case XCB_KEY_RELEASE: { //Exit program if escape is pressed
+					// Map key release event
                     xcb_key_release_event_t *kr = (xcb_key_release_event_t *)event;
 
+					// Check to see if escape key was pressed
                     switch (kr->detail) {
-                        /* ESC */
+                        // ESC key
                         case 9: {
                             free (event);
                             xcb_disconnect (connection);
@@ -244,10 +246,12 @@ main ()
                     free (event);
                 }
                 case XCB_EVENT_MASK_BUTTON_PRESS: {
+
                     // Get the input focus
                     xcb_void_cookie_t focus_cookie = xcb_set_input_focus_checked(connection, XCB_INPUT_FOCUS_POINTER_ROOT,window, XCB_CURRENT_TIME);
                     testCookie(focus_cookie, connection, "Failed to grab focus.\n");
 
+					// Temporary check to see if the window can be moved
 					values[0] = values[0] -10;
 					values[1] = values[1] -10;
 					xcb_configure_window(connection, window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
