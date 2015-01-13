@@ -14,7 +14,7 @@ all: menu
 
 run: menu
 	./menu
-	rm rf $(OBJDIR) menu
+	rm -rf $(OBJDIR) menu
 
 config: lighthouse .FORCE
 	cp -ir config/* ~/.config/
