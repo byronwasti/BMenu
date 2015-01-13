@@ -154,7 +154,7 @@ main ()
                                                                 window, screen->root,
                                                                 20, 200, 
                                                                 WIDTH, HEIGHT,
-                                                                0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
+                                                                10, XCB_WINDOW_CLASS_INPUT_OUTPUT,
                                                                 screen->root_visual,
                                                                 mask, values);
 
@@ -193,8 +193,8 @@ main ()
       }
     
     // Set the window to be in the center
-    values[0] = screen->width_in_pixels / 2 - WIDTH;
-    values[1] = screen->height_in_pixels / 2 - HEIGHT;
+    values[0] = screen->width_in_pixels / 2 - WIDTH/2;
+    values[1] = screen->height_in_pixels / 2 - HEIGHT/2;
     xcb_configure_window (connection, window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
 
 
@@ -209,7 +209,6 @@ main ()
     xcb_generic_event_t  *event;
     while (1) { ;
         if ( (event = xcb_poll_for_event(connection)) ) {
-            printf("got an event! %d\n", event->response_type);
             switch (event->response_type & ~0x80) {
                 case XCB_EXPOSE: {
 
@@ -221,10 +220,15 @@ main ()
                     drawText (connection, 
                               screen,
                               window,
-                              10, HEIGHT - 10,
-                              "Press ESC key to exit..." );
+                              WIDTH/2-strlen("BMenu"), HEIGHT/2,
+                              "BMenu" );
                     break;
                 }
+				case XCB_ENTER_NOTIFY: {
+					printf ("Entered window\n");
+					xcb_void_cookie_t focus_cookie = xcb_set_input_focus_checked(connection, XCB_INPUT_FOCUS_POINTER_ROOT, window, XCB_CURRENT_TIME);
+					testCookie(focus_cookie, connection, "Failed to grab focus.\n");
+				}
                 case XCB_KEY_RELEASE: {
                     printf("got key release\n");
                     xcb_key_release_event_t *kr = (xcb_key_release_event_t *)event;
@@ -243,7 +247,14 @@ main ()
                     // Get the input focus
                     xcb_void_cookie_t focus_cookie = xcb_set_input_focus_checked(connection, XCB_INPUT_FOCUS_POINTER_ROOT,window, XCB_CURRENT_TIME);
                     testCookie(focus_cookie, connection, "Failed to grab focus.\n");
-                    break;
+
+					values[0] = values[0] -10;
+					values[1] = values[1] -10;
+					xcb_configure_window(connection, window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
+					xcb_void_cookie_t mapCookie = xcb_map_window_checked (connection, window);
+					testCookie(mapCookie, connection, "Can't move the window, click \n");
+					xcb_flush(connection);
+					break;
                 }
             }
         }
